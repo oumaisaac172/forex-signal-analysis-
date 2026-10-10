@@ -1,0 +1,361 @@
+{
+  "entities": {
+    "Analysis": {
+      "title": "Analysis",
+      "description": "A saved forex trading signal analysis generated for an uploaded chart.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the analysis"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Firebase UID of the owner"
+        },
+        "pair": {
+          "type": "string",
+          "description": "Forex currency pair, e.g. EUR/USD, USD/JPY, GBP/USD"
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["BUY", "SELL"],
+          "description": "Trading signal direction"
+        },
+        "timeframe": {
+          "type": "string",
+          "description": "Chart timeframe, e.g. M15, 1H, 4H, Daily"
+        },
+        "analysisType": {
+          "type": "string",
+          "description": "Analysis category, e.g. Price Action, Liquidity Sweep, Breakout & Retest"
+        },
+        "entryPrice": {
+          "type": "string",
+          "description": "Recommended entry price level"
+        },
+        "stopLoss": {
+          "type": "string",
+          "description": "Stop loss price level"
+        },
+        "tp1": {
+          "type": "string",
+          "description": "Take profit target 1"
+        },
+        "tp2": {
+          "type": "string",
+          "description": "Take profit target 2"
+        },
+        "tp3": {
+          "type": "string",
+          "description": "Take profit target 3"
+        },
+        "riskReward": {
+          "type": "string",
+          "description": "Risk to reward ratio, e.g. 1:2.8"
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Confidence percentage score (0-100)"
+        },
+        "marketStructure": {
+          "type": "string",
+          "description": "Breakdown of market trend, highs/lows, swing points"
+        },
+        "supportResistance": {
+          "type": "string",
+          "description": "Key support and resistance zones identified"
+        },
+        "marketPsychology": {
+          "type": "string",
+          "description": "Market psychology, buyer/seller exhaustion, institutional orderflow"
+        },
+        "candlestickConfirmation": {
+          "type": "string",
+          "description": "Candle patterns confirming entry"
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "Data URL or thumbnail reference of the analyzed chart screenshot"
+        },
+        "chatHistory": {
+          "type": "array",
+          "description": "List of user and AI advisor messages for this analysis"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when analysis was created"
+        }
+      },
+      "required": [
+        "userId",
+        "pair",
+        "direction",
+        "entryPrice",
+        "stopLoss",
+        "tp1",
+        "marketStructure",
+        "createdAt"
+      ]
+    },
+    "DailyUsage": {
+      "title": "DailyUsage",
+      "description": "Tracks daily scan counts per user to prevent overtrading.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase UID of user"
+        },
+        "date": {
+          "type": "string",
+          "description": "Date key in YYYY-MM-DD format"
+        },
+        "scanCount": {
+          "type": "number",
+          "description": "Total scans executed today"
+        },
+        "lastScanAt": {
+          "type": "string",
+          "description": "ISO timestamp of the most recent scan"
+        }
+      },
+      "required": [
+        "userId",
+        "date",
+        "scanCount",
+        "lastScanAt"
+      ]
+    },
+    "WatchlistItem": {
+      "title": "WatchlistItem",
+      "description": "A saved favorite trading pair in the user's watchlist.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique ID of the watchlist item (e.g. pair symbol clean)"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Firebase UID of user"
+        },
+        "pair": {
+          "type": "string",
+          "description": "Currency pair symbol e.g. EUR/USD"
+        },
+        "category": {
+          "type": "string",
+          "description": "Major, Cross, or Commodity"
+        },
+        "alertsEnabled": {
+          "type": "boolean",
+          "description": "Whether AI setup browser notifications are enabled for this pair"
+        },
+        "addedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp when added to watchlist"
+        }
+      },
+      "required": [
+        "userId",
+        "pair",
+        "addedAt"
+      ]
+    },
+    "JournalEntry": {
+      "title": "JournalEntry",
+      "description": "Manual trade journal log recording actual outcome, notes, and pips for a generated signal.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique journal document ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Firebase UID of user"
+        },
+        "signalId": {
+          "type": "string",
+          "description": "Referenced signal ID from analyses collection"
+        },
+        "pair": {
+          "type": "string",
+          "description": "Currency pair e.g. USD/JPY"
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["BUY", "SELL"],
+          "description": "Signal trade direction"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": ["WIN", "LOSS", "BREAKEVEN"],
+          "description": "Actual trade execution outcome"
+        },
+        "entryPrice": {
+          "type": "string",
+          "description": "Signal entry price"
+        },
+        "exitPrice": {
+          "type": "string",
+          "description": "Actual exit price level"
+        },
+        "pnlPips": {
+          "type": "number",
+          "description": "Net pips gained or lost on the trade"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Personal execution notes, discipline reflections, and psychology review"
+        },
+        "loggedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when journal entry was created"
+        }
+      },
+      "required": [
+        "userId",
+        "signalId",
+        "pair",
+        "direction",
+        "outcome",
+        "loggedAt"
+      ]
+    },
+    "SharedSignal": {
+      "title": "SharedSignal",
+      "description": "Public-facing view-only trade signal analysis shared for social media viewing.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique share ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Creator user UID"
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Display name of creator trader"
+        },
+        "pair": {
+          "type": "string",
+          "description": "Currency or crypto pair"
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["BUY", "SELL"],
+          "description": "Trade direction"
+        },
+        "timeframe": {
+          "type": "string",
+          "description": "Chart timeframe"
+        },
+        "analysisType": {
+          "type": "string",
+          "description": "Analysis category"
+        },
+        "entryPrice": {
+          "type": "string",
+          "description": "Entry price level"
+        },
+        "stopLoss": {
+          "type": "string",
+          "description": "Stop loss level"
+        },
+        "tp1": {
+          "type": "string",
+          "description": "Target TP1"
+        },
+        "tp2": {
+          "type": "string",
+          "description": "Target TP2"
+        },
+        "tp3": {
+          "type": "string",
+          "description": "Target TP3"
+        },
+        "riskReward": {
+          "type": "string",
+          "description": "Risk to reward ratio"
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Confidence percentage"
+        },
+        "marketStructure": {
+          "type": "string",
+          "description": "Market structure breakdown"
+        },
+        "supportResistance": {
+          "type": "string",
+          "description": "Support resistance levels"
+        },
+        "marketPsychology": {
+          "type": "string",
+          "description": "Market psychology review"
+        },
+        "candlestickConfirmation": {
+          "type": "string",
+          "description": "Candle patterns confirmation"
+        },
+        "vsaSignalType": {
+          "type": "string",
+          "description": "VSA pattern type"
+        },
+        "vsaExplanation": {
+          "type": "string",
+          "description": "VSA volume and spread analysis"
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "Chart screenshot URL"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp when shared"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "pair",
+        "direction",
+        "entryPrice",
+        "stopLoss",
+        "tp1",
+        "marketStructure",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/analyses/{analysisId}": {
+      "schema": "Analysis",
+      "description": "Individual forex signal analysis document owned by the user."
+    },
+    "/users/{userId}/dailyScans/{dateId}": {
+      "schema": "DailyUsage",
+      "description": "Daily scan tracking document to enforce the 5 scans per day anti-overtrading guard."
+    },
+    "/users/{userId}/watchlist/{pairId}": {
+      "schema": "WatchlistItem",
+      "description": "Favorite trading pair saved in user watchlist with optional AI setup notifications toggle."
+    },
+    "/users/{userId}/journal/{journalId}": {
+      "schema": "JournalEntry",
+      "description": "Trade journal entry logging actual outcome (Win/Loss/Breakeven) and notes linked to a signal ID."
+    },
+    "/sharedSignals/{shareId}": {
+      "schema": "SharedSignal",
+      "description": "Public-facing view-only trade signal analysis accessible without login."
+    }
+  }
+}

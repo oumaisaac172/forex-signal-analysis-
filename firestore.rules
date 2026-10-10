@@ -1,0 +1,132 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny all by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'oumaisaac172@gmail.com' && request.auth.token.email_verified == true;
+    }
+
+    function isValidAnalysis(data) {
+      return data.keys().hasAll(['userId', 'pair', 'direction', 'entryPrice', 'stopLoss', 'tp1', 'marketStructure', 'createdAt'])
+        && data.userId is string && data.userId == request.auth.uid
+        && data.pair is string && data.pair.size() > 0 && data.pair.size() <= 30
+        && (data.direction == 'BUY' || data.direction == 'SELL')
+        && data.entryPrice is string && data.entryPrice.size() > 0 && data.entryPrice.size() <= 30
+        && data.stopLoss is string && data.stopLoss.size() > 0 && data.stopLoss.size() <= 30
+        && data.tp1 is string && data.tp1.size() > 0 && data.tp1.size() <= 30
+        && data.marketStructure is string && data.marketStructure.size() <= 5000
+        && data.createdAt is string && data.createdAt.size() <= 50;
+    }
+
+    function isValidDailyUsage(data) {
+      return data.keys().hasAll(['userId', 'date', 'scanCount', 'lastScanAt'])
+        && data.userId is string && data.userId == request.auth.uid
+        && data.date is string && data.date.size() <= 20
+        && data.scanCount is number && data.scanCount >= 0 && data.scanCount <= 1000
+        && data.lastScanAt is string && data.lastScanAt.size() <= 50;
+    }
+
+    function isValidWatchlist(data) {
+      return data.keys().hasAll(['userId', 'pair', 'addedAt'])
+        && data.userId is string && data.userId == request.auth.uid
+        && data.pair is string && data.pair.size() > 0 && data.pair.size() <= 20
+        && data.addedAt is string && data.addedAt.size() <= 50
+        && (!('alertsEnabled' in data) || data.alertsEnabled is bool);
+    }
+
+    function isValidJournal(data) {
+      return data.keys().hasAll(['userId', 'signalId', 'pair', 'direction', 'outcome', 'loggedAt'])
+        && data.userId is string && data.userId == request.auth.uid
+        && data.signalId is string && data.signalId.size() > 0 && data.signalId.size() <= 128
+        && data.pair is string && data.pair.size() > 0 && data.pair.size() <= 30
+        && (data.direction == 'BUY' || data.direction == 'SELL')
+        && (data.outcome == 'WIN' || data.outcome == 'LOSS' || data.outcome == 'BREAKEVEN')
+        && data.loggedAt is string && data.loggedAt.size() <= 50
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 5000))
+        && (!('exitPrice' in data) || (data.exitPrice is string && data.exitPrice.size() <= 30))
+        && (!('pnlPips' in data) || data.pnlPips is number);
+    }
+
+    function isValidSharedSignal(data) {
+      return data.keys().hasAll(['id', 'userId', 'pair', 'direction', 'entryPrice', 'stopLoss', 'tp1', 'marketStructure', 'createdAt'])
+        && data.id is string && isValidId(data.id)
+        && data.userId is string && data.userId == request.auth.uid
+        && data.pair is string && data.pair.size() > 0 && data.pair.size() <= 30
+        && (data.direction == 'BUY' || data.direction == 'SELL')
+        && data.entryPrice is string && data.entryPrice.size() > 0 && data.entryPrice.size() <= 30
+        && data.stopLoss is string && data.stopLoss.size() > 0 && data.stopLoss.size() <= 30
+        && data.tp1 is string && data.tp1.size() > 0 && data.tp1.size() <= 30
+        && data.marketStructure is string && data.marketStructure.size() <= 5000
+        && data.createdAt is string && data.createdAt.size() <= 50;
+    }
+
+    match /users/{userId}/analyses/{analysisId} {
+      allow get, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId) && isValidId(analysisId);
+      allow list: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId);
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(analysisId)
+        && incoming().userId == userId
+        && isValidAnalysis(incoming());
+      allow update: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(analysisId)
+        && incoming().userId == existing().userId
+        && isValidAnalysis(incoming());
+    }
+
+    match /users/{userId}/dailyScans/{dateId} {
+      allow get, list: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId);
+      allow create, update: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(dateId)
+        && incoming().userId == userId
+        && isValidDailyUsage(incoming());
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId) && isValidId(dateId);
+    }
+
+    match /users/{userId}/watchlist/{pairId} {
+      allow get, list: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId);
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(pairId)
+        && incoming().userId == userId
+        && isValidWatchlist(incoming());
+      allow update: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(pairId)
+        && incoming().userId == existing().userId
+        && isValidWatchlist(incoming());
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId) && isValidId(pairId);
+    }
+
+    match /users/{userId}/journal/{journalId} {
+      allow get, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId) && isValidId(journalId);
+      allow list: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId);
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(journalId)
+        && incoming().userId == userId
+        && isValidJournal(incoming());
+      allow update: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(journalId)
+        && incoming().userId == existing().userId
+        && isValidJournal(incoming());
+    }
+
+    match /sharedSignals/{shareId} {
+      allow get: if isValidId(shareId);
+      allow list: if false;
+      allow create: if isSignedIn() && request.auth.uid == incoming().userId && isValidId(shareId)
+        && isValidSharedSignal(incoming());
+      allow update, delete: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin()) && isValidId(shareId);
+    }
+  }
+}
