@@ -39,6 +39,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
   const [vsaFilter, setVsaFilter] = useState<string>('ALL');
   const [sortBy, setSortBy] = useState<string>('newest');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [signalToDelete, setSignalToDelete] = useState<TradingSignal | null>(null);
 
   const getVSASignalTag = (item: TradingSignal) => {
     const text = `${item.analysisType} ${item.marketPsychology} ${item.candlestickConfirmation} ${item.supportResistance} ${item.marketStructure}`.toLowerCase();
@@ -92,14 +93,17 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
     return 0;
   });
 
-  const handleDelete = async (e: React.MouseEvent, signalId: string) => {
+  const handleRequestDelete = (e: React.MouseEvent, item: TradingSignal) => {
     e.stopPropagation();
-    if (!window.confirm('Delete this saved signal analysis from Cloud Firestore?')) {
-      return;
-    }
+    setSignalToDelete(item);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!signalToDelete) return;
     try {
-      setDeletingId(signalId);
-      await deleteAnalysisFromFirestore(userId, signalId);
+      setDeletingId(signalToDelete.id);
+      await deleteAnalysisFromFirestore(userId, signalToDelete.id);
+      setSignalToDelete(null);
     } catch (err) {
       console.error('Failed to delete analysis:', err);
     } finally {
@@ -124,9 +128,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
   return (
     <div className="space-y-6">
       {/* 1. Recharts Performance Insights Card */}
-      {analyses.length > 0 && (
-        <PerformanceInsights analyses={analyses} journalEntries={journalEntries} />
-      )}
+      <PerformanceInsights analyses={analyses} journalEntries={journalEntries} />
 
       {/* 2. Analysis History List Container */}
       <div className="bg-[#0e131f] border border-slate-800 rounded-2xl p-5 sm:p-7 shadow-xl space-y-4">
@@ -288,12 +290,16 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
 
                         <button
                           type="button"
-                          onClick={(e) => handleDelete(e, item.id)}
+                          onClick={(e) => handleRequestDelete(e, item)}
                           disabled={deletingId === item.id}
-                          className="text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-rose-500/10 transition-colors opacity-70 group-hover:opacity-100 cursor-pointer"
+                          className="text-slate-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/15 border border-slate-800 hover:border-rose-500/30 transition-all cursor-pointer relative z-10"
                           title="Delete from Firestore"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          {deletingId === item.id ? (
+                            <div className="w-3.5 h-3.5 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Trash2 className="w-3.5 h-3.5 text-rose-400/80 hover:text-rose-300" />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -342,6 +348,83 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({
           </div>
         )}
       </div>
+
+      {/* In-App Delete Confirmation Modal (Zero window.confirm) */}
+      {signalToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#0b0f19] border border-rose-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Delete Saved Analysis?</h3>
+                <p className="text-xs text-slate-400">Permanently remove this chart signal from Cloud Firestore.</p>
+              </div>
+            </div>
+
+            {/* Signal Details */}
+            <div className="p-3.5 rounded-xl bg-[#060810] border border-slate-800 space-y-2 text-xs font-mono">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Pair & Direction:</span>
+                <span className="text-white font-bold flex items-center gap-1.5">
+                  <span>{signalToDelete.pair}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded text-[10px] font-extrabold ${
+                      signalToDelete.direction === 'BUY'
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : 'bg-rose-500/20 text-rose-300'
+                    }`}
+                  >
+                    {signalToDelete.direction}
+                  </span>
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Timeframe:</span>
+                <span className="text-slate-300">{signalToDelete.timeframe}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Entry / TP1:</span>
+                <span className="text-slate-200">{signalToDelete.entryPrice} → {signalToDelete.tp1}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Created:</span>
+                <span className="text-slate-400">{formatDate(signalToDelete.createdAt)}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setSignalToDelete(null)}
+                disabled={deletingId === signalToDelete.id}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deletingId === signalToDelete.id}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-lg shadow-rose-600/30 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {deletingId === signalToDelete.id ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Analysis</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

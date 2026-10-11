@@ -23,7 +23,7 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && request.auth.token.email == 'oumaisaac172@gmail.com' && request.auth.token.email_verified == true;
+      return isSignedIn() && request.auth.token.email.lower() == 'oumaisaac172@gmail.com';
     }
 
     function isValidAnalysis(data) {
@@ -80,6 +80,29 @@ service cloud.firestore {
         && data.createdAt is string && data.createdAt.size() <= 50;
     }
 
+    function isValidUserStrategySettings(data) {
+      return data.keys().hasAll(['userId', 'activeStrategies'])
+        && data.userId is string && data.userId == request.auth.uid
+        && data.activeStrategies is list
+        && data.activeStrategies.size() <= 200;
+    }
+
+    function isValidSubscription(data) {
+      return data.keys().hasAll(['userId', 'plan', 'status', 'expiresAt', 'createdAt'])
+        && data.userId is string && (data.userId == request.auth.uid || isAdmin())
+        && (data.plan == 'trial' || data.plan == 'monthly')
+        && (data.status == 'active' || data.status == 'expired')
+        && data.expiresAt is string && data.expiresAt.size() <= 50
+        && data.createdAt is string && data.createdAt.size() <= 50;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId);
+      allow list: if isAdmin();
+      allow create, update: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId);
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
     match /users/{userId}/analyses/{analysisId} {
       allow get, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId) && isValidId(analysisId);
       allow list: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId);
@@ -89,6 +112,26 @@ service cloud.firestore {
       allow update: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(analysisId)
         && incoming().userId == existing().userId
         && isValidAnalysis(incoming());
+    }
+
+    match /users/{userId}/settings/strategies {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId);
+      allow create, update: if isSignedIn() && request.auth.uid == userId && isValidId(userId)
+        && incoming().userId == userId
+        && isValidUserStrategySettings(incoming());
+    }
+
+    match /users/{userId}/subscription/status {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId);
+      allow create, update: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidId(userId)
+        && incoming().userId == userId
+        && isValidSubscription(incoming());
+    }
+
+    match /transactions/{orderId} {
+      allow read: if isSignedIn() && (isAdmin() || isValidId(orderId));
+      allow list: if isAdmin();
+      allow write: if false; // IPN handles writes via backend/admin
     }
 
     match /users/{userId}/dailyScans/{dateId} {

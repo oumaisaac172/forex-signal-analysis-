@@ -51,6 +51,8 @@ export interface TradingSignal {
   engine?: string;
   chatHistory: ChatMessage[];
   createdAt: string;
+  shareId?: string;
+  status?: 'pending' | 'win' | 'loss' | 'breakeven';
 }
 
 export interface SharedSignal {
@@ -76,6 +78,7 @@ export interface SharedSignal {
   vsaExplanation?: string;
   imageUrl?: string;
   createdAt: string;
+  viewCount?: number;
 }
 
 export interface DailyUsage {
@@ -83,6 +86,59 @@ export interface DailyUsage {
   date: string;
   scanCount: number;
   lastScanAt: string;
+}
+
+export interface UserSubscription {
+  userId: string;
+  plan: 'trial' | 'monthly';
+  status: 'active' | 'expired';
+  expiresAt: string; // ISO string
+  createdAt: string; // ISO string
+}
+
+export interface AdminPlatformMetrics {
+  totalUsers: number;
+  dailyActive: number;
+  weeklyActive: number;
+  monthlyActive: number;
+  yearlyActive: number;
+  totalScansAllTime: number;
+  todayScans: number;
+  totalJournalTrades: number;
+  realizedWinRate: number;
+  totalRevenueUSD: number;
+  recentUsers: Array<{
+    uid: string;
+    email: string;
+    displayName?: string;
+    lastLoginAt?: string;
+    createdAt?: string;
+    lastScanAt?: string;
+  }>;
+  recentAnalyses: Array<{
+    id: string;
+    pair: string;
+    direction: string;
+    timeframe: string;
+    entryPrice: string;
+    confidence: number;
+    analysisType?: string;
+    createdAt: string;
+  }>;
+  recentTransactions: Array<{
+    id: string;
+    userId?: string;
+    status: string;
+    amount?: number | string;
+    currency?: string;
+    createdAt?: string;
+  }>;
+  systemStatus: {
+    databaseConnected: boolean;
+    firestoreDatabaseId: string;
+    geminiActive: boolean;
+    uptimeSeconds: number;
+  };
 }
 
 export interface WatchlistItem {

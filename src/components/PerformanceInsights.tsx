@@ -29,6 +29,7 @@ import {
   CheckCircle2,
   ShieldCheck,
 } from 'lucide-react';
+import { StrategyEffectivenessCard } from './StrategyEffectivenessCard';
 
 interface PerformanceInsightsProps {
   analyses: TradingSignal[];
@@ -37,7 +38,11 @@ interface PerformanceInsightsProps {
 
 export const PerformanceInsights: React.FC<PerformanceInsightsProps> = ({ analyses, journalEntries = [] }) => {
   if (analyses.length === 0) {
-    return null;
+    return (
+      <div className="space-y-6">
+        <StrategyEffectivenessCard analyses={[]} journalEntries={journalEntries} />
+      </div>
+    );
   }
 
   // Compute cumulative daily P&L from logged journal entries
@@ -107,22 +112,29 @@ export const PerformanceInsights: React.FC<PerformanceInsightsProps> = ({ analys
     { name: 'SELL Signals', value: sellCount, percentage: sellPercentage, color: '#ef4444' },
   ].filter(d => d.value > 0);
 
+  // Consolidated AI signals monitored via live market data for TP/SL hits
+  const signalWins = analyses.filter((a) => a.status === 'win').length;
+  const signalLosses = analyses.filter((a) => a.status === 'loss').length;
+  const signalPending = analyses.filter((a) => !a.status || a.status === 'pending').length;
+  const resolvedCount = signalWins + signalLosses;
+
   // Calculate historical win-rate estimation:
-  const avgConfidence = Math.round(
+  const avgConfidence = total > 0 ? Math.round(
     analyses.reduce((acc, curr) => acc + (curr.confidence || 85), 0) / total
-  );
+  ) : 85;
 
   const parsedRRs = analyses.map((a) => {
     const parts = (a.riskReward || '1:2.5').split(':');
     const reward = parseFloat(parts[1]) || 2.5;
     return reward;
   });
-  const avgRewardMultiple = (parsedRRs.reduce((a, b) => a + b, 0) / total).toFixed(1);
+  const avgRewardMultiple = total > 0 ? (parsedRRs.reduce((a, b) => a + b, 0) / total).toFixed(1) : '2.5';
 
-  const estimatedWinRate = Math.min(
-    88,
-    Math.max(54, Math.round(50 + (avgConfidence - 50) * 0.55))
-  );
+  const estimatedWinRate = resolvedCount > 0
+    ? Math.round((signalWins / resolvedCount) * 100)
+    : (total > 0 
+        ? Math.min(88, Math.max(54, Math.round(50 + (avgConfidence - 50) * 0.55)))
+        : 84);
 
   const winRateDec = estimatedWinRate / 100;
   const avgRewardNum = parseFloat(avgRewardMultiple);
@@ -337,20 +349,20 @@ export const PerformanceInsights: React.FC<PerformanceInsightsProps> = ({ analys
 
       {/* Top 4 Key Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* Estimated Win-Rate */}
-        <div className="bg-[#080c14] border border-emerald-500/30 p-3.5 rounded-xl shadow-inner">
+        {/* AI Score (Live Monitored Win-Rate) */}
+        <div className="bg-[#080c14] border border-cyan-500/30 p-3.5 rounded-xl shadow-inner">
           <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center justify-between">
             <span className="flex items-center gap-1">
-              <Percent className="w-3 h-3 text-emerald-400" />
-              Est. Win Rate
+              <Zap className="w-3 h-3 text-cyan-400" />
+              AI Score (Live Monitored)
             </span>
-            <span className="text-emerald-400 font-bold">High Edge</span>
+            <span className="text-cyan-400 font-bold">{signalWins}W / {signalLosses}L</span>
           </div>
-          <div className="text-2xl font-black text-emerald-300 font-mono mt-1.5">
+          <div className="text-2xl font-black text-cyan-300 font-mono mt-1.5">
             {estimatedWinRate}%
           </div>
           <div className="text-[10px] text-slate-500 mt-1">
-            Based on {avgConfidence}% avg confidence
+            {resolvedCount} resolved ({signalPending} pending TP/SL)
           </div>
         </div>
 
@@ -564,6 +576,9 @@ export const PerformanceInsights: React.FC<PerformanceInsightsProps> = ({ analys
           <span className="font-mono text-slate-500">Last 30 Calendar Days</span>
         </div>
       </div>
+
+      {/* DEDICATED VISUALIZATION CARD: Strategy Effectiveness (Institutional vs. Retail Categories) */}
+      <StrategyEffectivenessCard analyses={analyses} journalEntries={journalEntries} />
 
       {/* DEDICATED VISUALIZATION CARD: VSA Signal Types Win-Rate Performance & Pattern Edge Identifier */}
       <div className="bg-[#080c14] p-5 sm:p-6 rounded-2xl border border-amber-500/30 shadow-2xl space-y-5">

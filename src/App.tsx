@@ -12,7 +12,9 @@ import {
   resetDailyScansForUser,
   isUserAdmin,
   getTodayDateKey,
+  getUserStrategies,
 } from './firebase';
+import { institutionalStrategies, retailStrategies } from './data/strategies';
 import type {
   TradingSignal,
   ChatMessage,
@@ -38,7 +40,13 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { SettingsModal } from './components/SettingsModal';
 import { BottomActionBar } from './components/BottomActionBar';
 import { PublicSharedSignalView } from './components/PublicSharedSignalView';
-import { Sparkles, AlertCircle, RefreshCw } from 'lucide-react';
+import { ForexAnalysisModels } from './components/ForexAnalysisModels';
+import { MultiSourceMarketDataView } from './components/MultiSourceMarketDataView';
+import { AiSignalVsaAnalysis } from './components/AiSignalVsaAnalysis';
+import { CryptoPayment } from './components/CryptoPayment';
+import { SubscriptionSelection } from './components/SubscriptionSelection';
+import { OnboardingTour } from './components/OnboardingTour';
+import { Sparkles, AlertCircle, RefreshCw, Cpu } from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -66,7 +74,7 @@ export default function App() {
   const [activeSignalToLog, setActiveSignalToLog] = useState<TradingSignal | null>(null);
 
   // Active page state for dedicated tab pages including admin
-  const [activePage, setActivePage] = useState<'scan' | 'results' | 'journal' | 'history' | 'sentiment' | 'watchlist' | 'admin'>('scan');
+  const [activePage, setActivePage] = useState<'scan' | 'results' | 'journal' | 'history' | 'sentiment' | 'watchlist' | 'admin' | 'analysis-models' | 'payment' | 'market-data' | 'vsa-analysis'>('scan');
 
   const [isWatchlistOpen, setIsWatchlistOpen] = useState(false);
   const [selectedWatchlistPair, setSelectedWatchlistPair] = useState<string>('');
@@ -103,7 +111,14 @@ export default function App() {
     localStorage.setItem('forex_auto_save_journal', String(nextVal));
   };
 
-  const isAdmin = isUserAdmin(user);
+  const isAdmin = Boolean(user && user.email && isUserAdmin(user));
+
+  // Guard: Ensure non-administrator users can never remain on the admin page
+  useEffect(() => {
+    if (!isAdmin && activePage === 'admin') {
+      setActivePage('scan');
+    }
+  }, [isAdmin, activePage]);
 
   // Subscribe to Firebase Auth
   useEffect(() => {
@@ -231,6 +246,9 @@ export default function App() {
 
     try {
       let signalData: Partial<TradingSignal>;
+      
+      const strategies = await getUserStrategies(user.uid);
+      const activeStrategies = strategies || [...institutionalStrategies, ...retailStrategies];
 
       const res = await fetch('/api/analyze-chart', {
         method: 'POST',
@@ -241,6 +259,7 @@ export default function App() {
           pairHint: pairHint || samplePreset?.pair,
           timeframeHint: timeframeHint || samplePreset?.timeframe,
           vsaOnly,
+          activeStrategies,
         }),
       });
 
@@ -273,6 +292,7 @@ export default function App() {
         imageUrl: imageBase64.length < 500000 ? imageBase64 : undefined,
         chatHistory: [],
         createdAt: new Date().toISOString(),
+        status: 'pending',
       };
 
       await saveAnalysisToFirestore(user.uid, newSignal);
@@ -391,6 +411,7 @@ export default function App() {
 
   return (
     <div className={`min-h-screen ${theme === 'midnight' ? 'bg-[#0a0f1d]' : 'bg-[#070a10]'} text-slate-100 flex flex-col selection:bg-amber-500/30 selection:text-amber-200 overflow-x-hidden pb-20`}>
+      <OnboardingTour />
       {/* App Header */}
       <Header
         user={user}
@@ -423,16 +444,16 @@ export default function App() {
       />
 
       {/* Main App Container with Sidebar layout */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden bg-[#05070a]">
         {/* Main Content Scrollable Area */}
-        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-          <div className="max-w-6xl mx-auto space-y-8">
+        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
+          <div className="max-w-6xl mx-auto space-y-10">
             {/* Global Error Banner if any */}
             {errorMessage && (
-              <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                  <span>{errorMessage}</span>
+              <div className="p-4 rounded-2xl bg-rose-500/5 border border-rose-500/20 text-rose-300 text-sm flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
+                  <span className="font-medium">{errorMessage}</span>
                 </div>
                 <button
                   onClick={() => setErrorMessage(null)}
@@ -578,10 +599,45 @@ export default function App() {
               </div>
             )}
 
+            {/* Page: Forex Analysis Models */}
+            {activePage === 'analysis-models' && user && (
+              <div className="pt-2 pb-12">
+                <ForexAnalysisModels userId={user.uid} />
+              </div>
+            )}
+
+            {/* Page: Multi-Source Market Data Architecture */}
+            {activePage === 'market-data' && user && (
+              <div className="pt-2 pb-12">
+                <MultiSourceMarketDataView />
+              </div>
+            )}
+
+            {/* Page: AI Signal VSA Analysis */}
+            {activePage === 'vsa-analysis' && user && (
+              <div className="pt-2 pb-12">
+                <AiSignalVsaAnalysis />
+              </div>
+            )}
+            
+            {/* Page: Payment */}
+            {activePage === 'payment' && user && (
+               <div className="pt-10 max-w-lg mx-auto">
+                 <SubscriptionSelection user={user} />
+               </div>
+            )}
+
             {/* Page 6: Admin Dashboard Page (Visible ONLY to Administrator User) */}
             {activePage === 'admin' && isAdmin && (
               <div className="pt-2 pb-12">
-                <AdminDashboard user={user} analysesCount={analysesHistory.length} />
+                <AdminDashboard
+                  user={user}
+                  analyses={analysesHistory}
+                  journalEntries={journalEntries}
+                  watchlistItems={watchlistItems}
+                  dailyUsage={dailyUsage}
+                  onResetQuota={handleAdminResetQuota}
+                />
               </div>
             )}
           </div>
@@ -612,7 +668,11 @@ export default function App() {
         onOpenHistory={() => setActivePage('history')}
         onOpenSentiment={() => setActivePage('sentiment')}
         onOpenWatchlist={() => setActivePage('watchlist')}
-        onOpenAdmin={isAdmin ? () => setActivePage('admin') : undefined}
+        onOpenAnalysisModels={() => setActivePage('analysis-models')}
+        onOpenMarketData={() => setActivePage('market-data')}
+        onOpenVsaAnalysis={() => setActivePage('vsa-analysis')}
+        onOpenPayment={() => setActivePage('payment')}
+        onOpenAdmin={isAdmin === true ? () => setActivePage('admin') : undefined}
         onToggleWatchlist={() => setIsWatchlistOpen(!isWatchlistOpen)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         activePage={activePage}
@@ -621,7 +681,7 @@ export default function App() {
         journalCount={journalEntries.length}
         historyCount={analysesHistory.length}
         theme={theme}
-        isAdmin={isAdmin}
+        isAdmin={isAdmin === true}
       />
 
       {/* Footer */}

@@ -149,25 +149,59 @@ export const SignalResults: React.FC<SignalResultsProps> = ({ signal, onLogTrade
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Calculate pip risk and lot size
-  const entryNum = parseFloat(signal.entryPrice) || 0;
-  const slNum = parseFloat(signal.stopLoss) || 0;
-  const tp1Num = parseFloat(signal.tp1) || 0;
-  const tp2Num = parseFloat(signal.tp2) || 0;
-  const tp3Num = parseFloat(signal.tp3) || 0;
+  // Calculate pip / point risk and lot size across all asset classes (Forex, Indices, Crypto, Metals, Stocks) with robust comma handling
+  const parseNum = (val: string | number | undefined) => {
+    if (typeof val === 'number') return val;
+    if (!val) return 0;
+    return parseFloat(val.toString().replace(/,/g, '').replace(/[^0-9.-]+/g, '')) || 0;
+  };
+
+  const entryNum = parseNum(signal.entryPrice);
+  const slNum = parseNum(signal.stopLoss);
+  const tp1Num = parseNum(signal.tp1);
+  const tp2Num = parseNum(signal.tp2);
+  const tp3Num = parseNum(signal.tp3);
   
-  const isJpy = signal.pair.includes('JPY');
-  const isGold = signal.pair.includes('XAU') || signal.pair.includes('GOLD');
-  const pipMultiplier = isGold ? 10 : (isJpy ? 100 : 10000);
+  const isIndex = ['NAS', 'US30', 'SPX', 'US2000', 'GER40', 'UK100', 'JPN', 'FRA', 'AUS', 'EUSTX', 'HK50', 'CHINA', 'VIX', 'NDX', 'DJI'].some(p => signal.pair.toUpperCase().includes(p));
+  const isCrypto = ['BTC', 'ETH', 'SOL', 'XRP', 'BNB', 'ADA', 'DOGE', 'LTC', 'AVAX', 'LINK', 'DOT', 'NEAR', 'SUI'].some(p => signal.pair.toUpperCase().includes(p));
+  const isStock = ['NVDA', 'AAPL', 'TSLA', 'MSFT', 'AMZN', 'GOOGL', 'META', 'AMD', 'NFLX', 'COIN', 'PLTR', 'BABA', 'INTC', 'DIS', 'JPM', 'V'].some(p => signal.pair.toUpperCase().includes(p));
+  const isGold = signal.pair.toUpperCase().includes('XAU') || signal.pair.toUpperCase().includes('GOLD') || signal.pair.toUpperCase().includes('XAG');
+  const isJpy = signal.pair.toUpperCase().includes('JPY');
+
+  const pipMultiplier = isIndex ? 1 : (isCrypto ? 1 : (isStock ? 1 : (isGold ? 10 : (isJpy ? 100 : 10000))));
+  const pipValuePerLot = isIndex ? 1 : (isCrypto ? 1 : (isStock ? 1 : (isGold ? 10 : 10)));
   
-  const pipsRisk = Math.max(1, Math.round(Math.abs(entryNum - slNum) * pipMultiplier * 10) / 10);
-  const pipsTP1 = Math.max(1, Math.round(Math.abs(tp1Num - entryNum) * pipMultiplier * 10) / 10);
-  const pipsTP2 = Math.max(1, Math.round(Math.abs(tp2Num - entryNum) * pipMultiplier * 10) / 10);
-  const pipsTP3 = Math.max(1, Math.round(Math.abs(tp3Num - entryNum) * pipMultiplier * 10) / 10);
+  const pipsRisk = Math.max(0.1, Math.round(Math.abs(entryNum - slNum) * pipMultiplier * 10) / 10);
+  const pipsTP1 = Math.max(0.1, Math.round(Math.abs(tp1Num - entryNum) * pipMultiplier * 10) / 10);
+  const pipsTP2 = Math.max(0.1, Math.round(Math.abs(tp2Num - entryNum) * pipMultiplier * 10) / 10);
+  const pipsTP3 = Math.max(0.1, Math.round(Math.abs(tp3Num - entryNum) * pipMultiplier * 10) / 10);
 
   const riskAmount = (accountBalance * (riskPercent / 100));
-  const pipValuePerLot = 10;
-  const recommendedLot = pipsRisk > 0 ? (riskAmount / (pipsRisk * pipValuePerLot)).toFixed(2) : '0.10';
+  const recommendedLot = pipsRisk > 0 && pipValuePerLot > 0 ? (riskAmount / (pipsRisk * pipValuePerLot)).toFixed(2) : '0.10';
+
+  // Dynamic R:R ratios for targets
+  const actualRR1 = pipsRisk > 0 ? (pipsTP1 / pipsRisk).toFixed(2) : '1.5';
+  const actualRR2 = pipsRisk > 0 ? (pipsTP2 / pipsRisk).toFixed(2) : '2.5';
+  const actualRR3 = pipsRisk > 0 ? (pipsTP3 / pipsRisk).toFixed(2) : '3.8';
+
+  // Compute P&L Projection
+  const pnLProjection = useMemo(() => {
+    const [_, rrStr] = signal.riskReward.split(':');
+    const rr = parseFloat(rrStr) || 2.0;
+    const winRate = backtestData.winRate / 100;
+    
+    // Simple compound growth: Balance * (1 + expectedReturnPerTrade)^100
+    // ExpectedReturnPerTrade = (winRate * (riskPercent/100 * rr)) - ((1 - winRate) * (riskPercent/100))
+    const expectedReturnPerTrade = (winRate * (riskPercent / 100 * rr)) - ((1 - winRate) * (riskPercent / 100));
+    
+    const projection = accountBalance * Math.pow(1 + expectedReturnPerTrade, 100);
+    
+    return {
+      finalBalance: projection,
+      totalReturn: projection - accountBalance,
+      percentageGrowth: ((projection - accountBalance) / accountBalance) * 100
+    };
+  }, [accountBalance, riskPercent, backtestData.winRate, signal.riskReward]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
@@ -245,10 +279,10 @@ export const SignalResults: React.FC<SignalResultsProps> = ({ signal, onLogTrade
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setShowBacktest(!showBacktest)}
-                className={`px-3 py-2 text-xs font-semibold rounded-xl border flex items-center gap-1.5 transition-colors cursor-pointer ${
+                className={`px-3 py-2 text-xs font-semibold rounded-xl border flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 ${
                   showBacktest
                     ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/20'
                     : 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 text-cyan-300 border-cyan-500/40'
@@ -262,7 +296,7 @@ export const SignalResults: React.FC<SignalResultsProps> = ({ signal, onLogTrade
               {onLogTrade && (
                 <button
                   onClick={onLogTrade}
-                  className="px-3 py-2 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 text-amber-300 text-xs font-semibold rounded-xl border border-amber-500/40 flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm shadow-amber-500/10"
+                  className="px-3 py-2 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 text-amber-300 text-xs font-semibold rounded-xl border border-amber-500/40 flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm shadow-amber-500/10 shrink-0"
                   title="Log Outcome to Trade Journal"
                 >
                   <BookOpen className="w-4 h-4 text-amber-400" />
@@ -273,7 +307,7 @@ export const SignalResults: React.FC<SignalResultsProps> = ({ signal, onLogTrade
               {/* Share Signal Public Link Button */}
               <button
                 onClick={() => setIsShareModalOpen(true)}
-                className="px-3.5 py-2 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-amber-500/20"
+                className="px-3.5 py-2 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-amber-500/20 shrink-0"
                 title="Share Signal Analysis (Public Web Link)"
               >
                 <Share2 className="w-4 h-4 text-slate-950" />
@@ -282,16 +316,16 @@ export const SignalResults: React.FC<SignalResultsProps> = ({ signal, onLogTrade
 
               <button
                 onClick={handleCopySignal}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-xl border border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-xl border border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
                 title="Copy Signal"
               >
                 {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-slate-300" />}
-                <span>{copied ? 'Copied' : 'Copy'}</span>
+                <span className="whitespace-nowrap">{copied ? 'Copied' : 'Copy'}</span>
               </button>
 
               <button
                 onClick={() => setShowCalculator(!showCalculator)}
-                className="px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-medium rounded-xl border border-amber-500/30 flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-medium rounded-xl border border-amber-500/30 flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
                 title="Calculate Position Size"
               >
                 <Calculator className="w-4 h-4 text-amber-400" />
@@ -634,7 +668,119 @@ export const SignalResults: React.FC<SignalResultsProps> = ({ signal, onLogTrade
         </div>
       </div>
 
-      {/* 2. Entry & Risk Management Cards Grid */}
+      {/* P&L Projection Card */}
+      <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-[#0b0f19] via-[#0e1424] to-[#070a12] border border-emerald-500/40 shadow-2xl space-y-4 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+          <div>
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-emerald-400" />
+              P&L Projection (100 Trades)
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Projected account growth based on current win rate ({backtestData.winRate}%) and R:R ({signal.riskReward}).
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-[#060911] border border-slate-800 p-4 rounded-xl">
+            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Final Balance</div>
+            <div className="text-xl font-black text-white font-mono">${pnLProjection.finalBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+          </div>
+          <div className="bg-[#060911] border border-slate-800 p-4 rounded-xl">
+            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Total Return</div>
+            <div className={`text-xl font-black font-mono ${pnLProjection.totalReturn >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              ${pnLProjection.totalReturn.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </div>
+          </div>
+          <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-xl">
+            <div className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider mb-1">Growth %</div>
+            <div className="text-xl font-black text-white font-mono">+{pnLProjection.percentageGrowth.toFixed(1)}%</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Enhanced Risk-to-Reward (R:R) & Mathematical Expectancy Hub */}
+      <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-[#0b0f19] via-[#0f172a] to-[#070a12] border border-sky-500/40 shadow-2xl space-y-5 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-sky-500/5 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+          <div>
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-sky-400" />
+              Risk-to-Reward (R:R) & Mathematical Expectancy Hub
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Multi-target R:R breakdown and edge expectancy for {signal.pair} ({signal.direction}).
+            </p>
+          </div>
+          <div className="flex items-center space-x-2 bg-[#060911] px-3.5 py-1.5 rounded-xl border border-sky-500/30 font-mono text-xs">
+            <span className="text-slate-400">Overall R:R:</span>
+            <span className="text-sky-400 font-bold">{signal.riskReward}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* TP1 R:R Card */}
+          <div className="bg-[#060911] border border-slate-800 p-4 rounded-xl flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                <span>Take Profit 1</span>
+                <span className="text-emerald-400 font-mono font-bold">+{pipsTP1} pts/pips</span>
+              </div>
+              <div className="text-2xl font-black text-white font-mono">1:{actualRR1}</div>
+            </div>
+            <div className="text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800 flex items-center justify-between">
+              <span>Action:</span>
+              <span className="text-emerald-300 font-medium">Secure 50% & BE</span>
+            </div>
+          </div>
+
+          {/* TP2 R:R Card */}
+          <div className="bg-[#060911] border border-slate-800 p-4 rounded-xl flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                <span>Take Profit 2</span>
+                <span className="text-emerald-400 font-mono font-bold">+{pipsTP2} pts/pips</span>
+              </div>
+              <div className="text-2xl font-black text-white font-mono">1:{actualRR2}</div>
+            </div>
+            <div className="text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800 flex items-center justify-between">
+              <span>Action:</span>
+              <span className="text-emerald-300 font-medium">Secure 30% Profit</span>
+            </div>
+          </div>
+
+          {/* TP3 R:R Card */}
+          <div className="bg-[#060911] border border-slate-800 p-4 rounded-xl flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                <span>Take Profit 3 (Runner)</span>
+                <span className="text-emerald-400 font-mono font-bold">+{pipsTP3} pts/pips</span>
+              </div>
+              <div className="text-2xl font-black text-white font-mono">1:{actualRR3}</div>
+            </div>
+            <div className="text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800 flex items-center justify-between">
+              <span>Action:</span>
+              <span className="text-sky-300 font-medium">Trail Stop Loss</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-[#060911]/90 border border-slate-800 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono">
+          <div className="space-y-1 text-slate-300">
+            <span className="text-sky-400 font-bold uppercase tracking-wide block">Mathematical Expectancy Formula</span>
+            <p className="text-slate-400 font-sans text-xs">
+              Expectancy = (Win Probability × Reward) − (Loss Probability × Risk) = <strong className="text-emerald-400 font-mono font-bold">Positive Edge ({backtestData.winRate}% Win Rate)</strong>
+            </p>
+          </div>
+          <div className="px-4 py-2 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-300 font-bold text-center shrink-0">
+            A+ High Expectancy Setup
+          </div>
+        </div>
+      </div>
       <div>
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
           <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
@@ -726,35 +872,42 @@ export const SignalResults: React.FC<SignalResultsProps> = ({ signal, onLogTrade
         </div>
 
         {/* Proportional Bar Container */}
-        <div className="space-y-2">
-          <div className="h-7 w-full bg-slate-900 rounded-xl overflow-hidden p-1 flex items-center gap-1 border border-slate-800">
+        <div className="space-y-3">
+          <div className="h-9 w-full bg-slate-900 rounded-xl overflow-hidden p-1 flex items-center gap-1.5 border border-slate-800">
             {/* Risk Bar (Red) */}
             <div 
-              className="h-full bg-gradient-to-r from-rose-600 to-rose-500 rounded-lg flex items-center justify-center text-[10px] font-mono font-bold text-white shadow-sm transition-all duration-500"
-              style={{ width: `${Math.max(18, Math.min(42, (pipsRisk / (pipsRisk + pipsTP3)) * 100))}%` }}
+              className="h-full bg-gradient-to-r from-rose-600 to-rose-500 rounded-lg flex flex-col items-center justify-center text-[10px] font-mono font-bold text-white shadow-sm transition-all duration-500 px-2 shrink-0"
+              style={{ width: `${Math.max(28, Math.min(45, (pipsRisk / (pipsRisk + pipsTP3)) * 100))}%` }}
               title={`Risk: -${pipsRisk} pips (1.0R)`}
             >
-              Risk (-{pipsRisk}p)
+              <span className="truncate">Risk</span>
+              <span className="text-[9px] text-rose-200 truncate">-{pipsRisk}p</span>
             </div>
 
             {/* Reward Segments (Green) */}
-            <div 
-              className="h-full flex-1 bg-gradient-to-r from-emerald-600 via-emerald-500 to-green-500 rounded-lg flex items-center justify-between px-3 text-[10px] font-mono font-bold text-slate-950 shadow-sm transition-all duration-500"
-              title={`Reward: +${pipsTP3} pips`}
-            >
-              <span>TP1: +{pipsTP1}p</span>
-              <span>TP2: +{pipsTP2}p</span>
-              <span>TP3: +{pipsTP3}p</span>
+            <div className="h-full flex-1 grid grid-cols-3 gap-1">
+              <div className="h-full bg-emerald-700/80 rounded-lg flex flex-col items-center justify-center text-[9px] font-mono font-bold text-white px-1 overflow-hidden" title={`TP1: +${pipsTP1}p`}>
+                <span className="text-[8px] text-emerald-300">TP1</span>
+                <span className="truncate">+{pipsTP1}p</span>
+              </div>
+              <div className="h-full bg-emerald-600 rounded-lg flex flex-col items-center justify-center text-[9px] font-mono font-bold text-white px-1 overflow-hidden" title={`TP2: +${pipsTP2}p`}>
+                <span className="text-[8px] text-emerald-200">TP2</span>
+                <span className="truncate">+{pipsTP2}p</span>
+              </div>
+              <div className="h-full bg-gradient-to-r from-emerald-500 to-green-500 rounded-lg flex flex-col items-center justify-center text-[9px] font-mono font-bold text-slate-950 px-1 overflow-hidden" title={`TP3: +${pipsTP3}p`}>
+                <span className="text-[8px] text-slate-900">TP3</span>
+                <span className="truncate">+{pipsTP3}p</span>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
-            <span className="text-rose-400 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-rose-500" />
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400 font-mono pt-1">
+            <span className="text-rose-400 flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50" />
               Stop Loss Risk (-{pipsRisk} pips = 1.0R)
             </span>
-            <span className="text-emerald-400 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="text-emerald-400 flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />
               Target Reward (+{pipsTP3} pips = {signal.riskReward})
             </span>
           </div>

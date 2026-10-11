@@ -3,6 +3,7 @@ import { SAMPLE_CHARTS } from '../data/sampleCharts';
 import type { SampleChartPreset } from '../types';
 import { DAILY_SCAN_LIMIT } from '../types';
 import { processChartImage } from '../utils/imageProcessor';
+import { AnnotationCanvas } from './AnnotationCanvas';
 import {
   UploadCloud,
   Image as ImageIcon,
@@ -15,6 +16,7 @@ import {
   Crown,
   Lock,
   RotateCcw,
+  Pencil,
 } from 'lucide-react';
 
 interface UploadSectionProps {
@@ -48,6 +50,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
   const [inputError, setInputError] = useState<string | null>(null);
   const [resettingQuota, setResettingQuota] = useState(false);
+  const [isAnnotating, setIsAnnotating] = useState(false);
 
   // Sync prefilledPair when user clicks a pair from Watchlist
   useEffect(() => {
@@ -212,15 +215,15 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
   };
 
   return (
-    <div className="bg-[#0e131f] border border-slate-800 rounded-2xl p-5 sm:p-7 shadow-xl shadow-black/40 space-y-6">
+    <div className="bg-[#090c13] border border-slate-800/50 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/60 space-y-8">
       {/* Upload Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <UploadCloud className="w-5 h-5 text-amber-400" />
+          <h2 className="text-xl font-bold text-white flex items-center gap-2.5">
+            <UploadCloud className="w-6 h-6 text-amber-400" />
             Chart Screenshot Upload
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-sm text-slate-400 mt-1">
             Upload from TradingView, MetaTrader, or cTrader. AI detects asset, timeframe, and market structure from screenshot.
           </p>
         </div>
@@ -359,6 +362,16 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
                 Preset: {activePreset.pair}
               </span>
             )}
+            {!isAnnotating && (
+              <button
+                type="button"
+                onClick={() => setIsAnnotating(true)}
+                className="p-1.5 bg-black/70 hover:bg-amber-600/80 text-white rounded-lg backdrop-blur-md transition-colors cursor-pointer"
+                title="Annotate image"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={handleClearImage}
@@ -369,13 +382,26 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
             </button>
           </div>
 
-          <div className="max-h-[360px] overflow-hidden flex items-center justify-center bg-[#070a10]">
-            <img
-              src={selectedImage}
-              alt="Uploaded Chart"
-              className="w-full h-auto max-h-[360px] object-contain"
-            />
-          </div>
+          {isAnnotating ? (
+            <div className="p-4 bg-[#070a10]">
+              <AnnotationCanvas
+                imageSrc={selectedImage}
+                onSave={(annotated) => {
+                  setSelectedImage(annotated);
+                  setIsAnnotating(false);
+                }}
+                onCancel={() => setIsAnnotating(false)}
+              />
+            </div>
+          ) : (
+            <div className="max-h-[360px] overflow-hidden flex items-center justify-center bg-[#070a10]">
+              <img
+                src={selectedImage}
+                alt="Uploaded Chart"
+                className="w-full h-auto max-h-[360px] object-contain"
+              />
+            </div>
+          )}
 
           <div className="px-4 py-2.5 bg-[#0b0f19] border-t border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-slate-400">
             <div className="flex flex-col gap-0.5">

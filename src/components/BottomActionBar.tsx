@@ -8,7 +8,12 @@ import {
   Bookmark,
   Settings,
   Crown,
+  Cpu,
+  CreditCard,
+  Database,
+  Sparkles,
 } from 'lucide-react';
+import { PWAInstallButton } from './PWAInstallButton';
 
 
 
@@ -19,10 +24,14 @@ interface BottomActionBarProps {
   onOpenHistory: () => void;
   onOpenSentiment: () => void;
   onOpenWatchlist: () => void;
+  onOpenAnalysisModels: () => void;
+  onOpenMarketData: () => void;
+  onOpenVsaAnalysis: () => void;
+  onOpenPayment: () => void;
   onOpenAdmin?: () => void;
   onToggleWatchlist: () => void;
   onOpenSettings: () => void;
-  activePage: 'scan' | 'results' | 'journal' | 'history' | 'sentiment' | 'watchlist' | 'admin';
+  activePage: 'scan' | 'results' | 'journal' | 'history' | 'sentiment' | 'watchlist' | 'admin' | 'analysis-models' | 'payment' | 'market-data' | 'vsa-analysis';
   hasActiveSignal: boolean;
   watchlistCount: number;
   journalCount: number;
@@ -38,6 +47,10 @@ export const BottomActionBar: React.FC<BottomActionBarProps> = ({
   onOpenHistory,
   onOpenSentiment,
   onOpenWatchlist,
+  onOpenAnalysisModels,
+  onOpenMarketData,
+  onOpenVsaAnalysis,
+  onOpenPayment,
   onOpenAdmin,
   onToggleWatchlist,
   onOpenSettings,
@@ -173,13 +186,95 @@ export const BottomActionBar: React.FC<BottomActionBarProps> = ({
           <span className="hidden md:inline">Sentiment</span>
         </button>
 
-        {/* Administrator Dashboard Button (Visible ONLY to Administrator User) */}
-        {isAdmin && onOpenAdmin && (
+        <div className="w-[1px] h-5 bg-slate-700/60 shrink-0" />
+
+        {/* Analysis Models Page Button */}
+        <button
+          onClick={onOpenAnalysisModels}
+          title="Forex Analysis Models"
+          className={`flex items-center space-x-1 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0 ${
+            activePage === 'analysis-models'
+              ? theme === 'midnight'
+                ? 'bg-cyan-500 text-slate-950 font-bold shadow'
+                : 'bg-amber-500 text-slate-950 font-bold shadow'
+              : theme === 'midnight'
+              ? 'hover:bg-cyan-500/20 hover:text-cyan-300 text-slate-300'
+              : 'hover:bg-amber-500/20 hover:text-amber-300 text-slate-300'
+          }`}
+        >
+          <Cpu className="w-4 h-4 shrink-0" />
+          <span className="hidden md:inline">Models</span>
+        </button>
+
+        <div className="w-[1px] h-5 bg-slate-700/60 shrink-0" />
+
+        {/* Multi-Source Market Data Integration Button */}
+        <button
+          onClick={onOpenMarketData}
+          title="Multi-Source Market Data (TradingView, MT5, cTrader, APIs)"
+          className={`flex items-center space-x-1 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0 ${
+            activePage === 'market-data'
+              ? theme === 'midnight'
+                ? 'bg-cyan-500 text-slate-950 font-bold shadow'
+                : 'bg-amber-500 text-slate-950 font-bold shadow'
+              : theme === 'midnight'
+              ? 'hover:bg-cyan-500/20 hover:text-cyan-300 text-slate-300'
+              : 'hover:bg-amber-500/20 hover:text-amber-300 text-slate-300'
+          }`}
+        >
+          <Database className="w-4 h-4 shrink-0 text-cyan-400" />
+          <span className="hidden md:inline">Data Sources</span>
+        </button>
+
+        <div className="w-[1px] h-5 bg-slate-700/60 shrink-0" />
+
+        {/* AI Signal VSA Analysis Button */}
+        <button
+          onClick={onOpenVsaAnalysis}
+          title="AI Signal VSA Analysis & Jesse Livermore Engine"
+          className={`flex items-center space-x-1 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0 ${
+            activePage === 'vsa-analysis'
+              ? theme === 'midnight'
+                ? 'bg-cyan-500 text-slate-950 font-bold shadow'
+                : 'bg-amber-500 text-slate-950 font-bold shadow'
+              : theme === 'midnight'
+              ? 'hover:bg-cyan-500/20 hover:text-cyan-300 text-slate-300'
+              : 'hover:bg-amber-500/20 hover:text-amber-300 text-slate-300'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 shrink-0 text-amber-400" />
+          <span className="hidden md:inline">VSA Analysis</span>
+        </button>
+
+        <div className="w-[1px] h-5 bg-slate-700/60 shrink-0" />
+
+        {/* Payment Page Button */}
+        <button
+          onClick={onOpenPayment}
+          title="Subscription Payment"
+          className={`flex items-center space-x-1 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0 ${
+            activePage === 'payment'
+              ? theme === 'midnight'
+                ? 'bg-cyan-500 text-slate-950 font-bold shadow'
+                : 'bg-amber-500 text-slate-950 font-bold shadow'
+              : theme === 'midnight'
+              ? 'hover:bg-cyan-500/20 hover:text-cyan-300 text-slate-300'
+              : 'hover:bg-amber-500/20 hover:text-amber-300 text-slate-300'
+          }`}
+        >
+          <CreditCard className="w-4 h-4 shrink-0" />
+          <span className="hidden md:inline">Payment</span>
+        </button>
+
+        {/* Administrator Dashboard Button (STRICTLY Visible to Administrator User ONLY) */}
+        {isAdmin === true && Boolean(onOpenAdmin) ? (
           <>
             <div className="w-[1px] h-5 bg-slate-700/60 shrink-0" />
             <button
+              type="button"
               onClick={onOpenAdmin}
-              title="Site Administrator Dashboard"
+              title="Administrator Command Center (Admin Only)"
+              aria-label="Administrator Command Center"
               className={`flex items-center space-x-1 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0 ${
                 activePage === 'admin'
                   ? 'bg-amber-400 text-slate-950 font-bold shadow'
@@ -190,7 +285,7 @@ export const BottomActionBar: React.FC<BottomActionBarProps> = ({
               <span className="hidden md:inline">Admin</span>
             </button>
           </>
-        )}
+        ) : null}
 
         <div className="w-[1px] h-5 bg-slate-700/60 shrink-0" />
 
@@ -218,6 +313,11 @@ export const BottomActionBar: React.FC<BottomActionBarProps> = ({
         </button>
 
         <div className="w-[1px] h-5 bg-slate-700/60 shrink-0" />
+
+        {/* PWA Install Button */}
+        <div className="flex items-center shrink-0">
+          <PWAInstallButton />
+        </div>
 
         {/* Settings Modal */}
         <button

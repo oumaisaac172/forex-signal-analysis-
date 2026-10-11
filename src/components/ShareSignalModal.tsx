@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { TradingSignal } from '../types';
-import { publishSharedSignal } from '../firebase';
+import { publishSharedSignal, updateAnalysisInFirestore } from '../firebase';
 import {
   Share2,
   X,
@@ -72,6 +72,9 @@ export const ShareSignalModal: React.FC<ShareSignalModalProps> = ({
         const firestoreId = await publishSharedSignal(signal, authorName);
         if (firestoreId && !resolvedId) {
           resolvedId = firestoreId;
+        }
+        if (firestoreId) {
+          updateAnalysisInFirestore(signal.userId, { ...signal, shareId: firestoreId }).catch(console.error);
         }
       } catch (err: any) {
         console.warn('Firestore share note:', err);

@@ -35,7 +35,7 @@ export const MarketSentimentHeatmap: React.FC<MarketSentimentHeatmapProps> = ({
       ? Array.from(new Set([...watchlistItems.map((w) => w.pair), ...defaultPairs]))
       : defaultPairs;
 
-  // Aggregate sentiment data for each pair based on analyses history or default simulation if none
+  // Aggregate sentiment data for each pair based on real live analyses history or neutral baseline if none
   const sentimentData = pairsToAnalyze.map((pair) => {
     const pairSignals = analyses.filter((a) => a.pair.toUpperCase() === pair.toUpperCase());
     const total = pairSignals.length;
@@ -43,15 +43,17 @@ export const MarketSentimentHeatmap: React.FC<MarketSentimentHeatmapProps> = ({
     let bullishCount = pairSignals.filter((a) => a.direction === 'BUY').length;
     let bearishCount = pairSignals.filter((a) => a.direction === 'SELL').length;
 
-    // If no signals for this pair yet, generate realistic deterministic baseline sentiment based on pair name hash
+    // If no signals for this pair yet, treat as neutral (50/50 or 0 count)
     if (total === 0) {
-      let hash = 0;
-      for (let i = 0; i < pair.length; i++) {
-        hash = pair.charCodeAt(i) + ((hash << 5) - hash);
-      }
-      const positiveHash = Math.abs(hash) % 100;
-      bullishCount = positiveHash > 45 ? 7 : 3;
-      bearishCount = positiveHash > 45 ? 3 : 7;
+      return {
+        pair,
+        bullish: 50,
+        bearish: 50,
+        sentimentScore: 50,
+        status: 'NEUTRAL',
+        color: '#64748b',
+        signalCount: 0,
+      };
     }
 
     const totalCount = bullishCount + bearishCount;

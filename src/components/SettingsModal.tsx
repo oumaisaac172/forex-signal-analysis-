@@ -11,6 +11,7 @@ import {
   Bell,
   Database,
 } from 'lucide-react';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -166,7 +167,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="button"
                 onClick={async () => {
                   if (!('Notification' in window)) {
-                    alert('Browser notifications are not supported by your browser.');
+                    console.warn('Browser notifications are not supported in this environment.');
                     return;
                   }
                   if (Notification.permission === 'granted') {
@@ -250,7 +251,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-end px-6 py-3.5 border-t border-slate-800 bg-[#080b12]">
+        <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-800 bg-[#080b12]">
+          <PWAInstallButton />
           <button
             onClick={onClose}
             className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors cursor-pointer"

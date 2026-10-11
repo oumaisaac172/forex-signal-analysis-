@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { SharedSignal, TradingSignal } from '../types';
-import { getSharedSignalById } from '../firebase';
+import { getSharedSignalById, incrementSharedSignalView } from '../firebase';
 import {
   TrendingUp,
   TrendingDown,
@@ -84,6 +84,7 @@ export const PublicSharedSignalView: React.FC<PublicSharedSignalViewProps> = ({
       if (isMounted) {
         if (foundData) {
           setSignal(foundData);
+          incrementSharedSignalView(shareId).catch(console.error);
         } else {
           setError('The requested shared signal could not be found or may have expired.');
         }
@@ -260,6 +261,7 @@ export const PublicSharedSignalView: React.FC<PublicSharedSignalViewProps> = ({
                   hour: '2-digit',
                   minute: '2-digit',
                 })}
+                {signal.viewCount !== undefined && ` • ${signal.viewCount} ${signal.viewCount === 1 ? 'View' : 'Views'}`}
               </p>
             </div>
           </div>

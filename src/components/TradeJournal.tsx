@@ -24,6 +24,8 @@ import {
   CalendarDays,
   LayoutGrid,
   List,
+  Globe,
+  AlertCircle,
 } from 'lucide-react';
 
 interface TradeJournalProps {
@@ -69,6 +71,11 @@ export const TradeJournal: React.FC<TradeJournalProps> = ({
     beCount: number;
   } | null>(null);
 
+  // In-App Deletion Modal State (No window.confirm)
+  const [entryToDelete, setEntryToDelete] = useState<JournalEntry | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null);
+
   // Open modal pre-filled with active signal if passed
   React.useEffect(() => {
     if (activeSignalToLog) {
@@ -89,7 +96,7 @@ export const TradeJournal: React.FC<TradeJournalProps> = ({
       setExitPrice(signals[0].tp1 || '');
     }
     setOutcome('WIN');
-    setPnlPips('30');
+    setPnlPips('');
     setNotes('');
     setIsLoggingModalOpen(true);
   };
@@ -126,12 +133,36 @@ export const TradeJournal: React.FC<TradeJournalProps> = ({
     }
   };
 
-  const handleDelete = async (entryId: string) => {
-    if (!window.confirm('Delete this trade journal entry from Cloud Firestore?')) return;
+  const handleRequestDelete = (entry: JournalEntry) => {
+    setDeleteErrorMessage(null);
+    setEntryToDelete(entry);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!entryToDelete) return;
     try {
-      await deleteJournalEntry(userId, entryId);
-    } catch (err) {
+      setDeletingId(entryToDelete.id);
+      setDeleteErrorMessage(null);
+      await deleteJournalEntry(userId, entryToDelete.id);
+
+      // If calendar day modal is open, update its local array immediately
+      setSelectedDayModal((prev) => {
+        if (!prev) return null;
+        const remaining = prev.entries.filter((e) => e.id !== entryToDelete.id);
+        if (remaining.length === 0) return null;
+        const wins = remaining.filter((e) => e.outcome === 'WIN').length;
+        const losses = remaining.filter((e) => e.outcome === 'LOSS').length;
+        const bes = remaining.filter((e) => e.outcome === 'BREAKEVEN').length;
+        const net = remaining.reduce((acc, curr) => acc + (curr.pnlPips || 0), 0);
+        return { ...prev, entries: remaining, winCount: wins, lossCount: losses, beCount: bes, netPips: net };
+      });
+
+      setEntryToDelete(null);
+    } catch (err: any) {
       console.error('Failed to delete journal entry:', err);
+      setDeleteErrorMessage('Could not delete trade from Cloud Firestore. Please retry.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -238,7 +269,7 @@ export const TradeJournal: React.FC<TradeJournalProps> = ({
       const wins = dayEntries.filter((e) => e.outcome === 'WIN').length;
       const losses = dayEntries.filter((e) => e.outcome === 'LOSS').length;
       const bes = dayEntries.filter((e) => e.outcome === 'BREAKEVEN').length;
-      const netPips = dayEntries.reduce((sum, e) => sum + (e.pnlPips !== undefined ? e.pnlPips : (e.outcome === 'WIN' ? 35 : e.outcome === 'LOSS' ? -20 : 0)), 0);
+      const netPips = dayEntries.reduce((sum, e) => sum + (e.pnlPips || 0), 0);
 
       days.push({
         date: prevDate,
@@ -262,7 +293,7 @@ export const TradeJournal: React.FC<TradeJournalProps> = ({
       const wins = dayEntries.filter((e) => e.outcome === 'WIN').length;
       const losses = dayEntries.filter((e) => e.outcome === 'LOSS').length;
       const bes = dayEntries.filter((e) => e.outcome === 'BREAKEVEN').length;
-      const netPips = dayEntries.reduce((sum, e) => sum + (e.pnlPips !== undefined ? e.pnlPips : (e.outcome === 'WIN' ? 35 : e.outcome === 'LOSS' ? -20 : 0)), 0);
+      const netPips = dayEntries.reduce((sum, e) => sum + (e.pnlPips || 0), 0);
 
       days.push({
         date: curDate,
@@ -288,7 +319,7 @@ export const TradeJournal: React.FC<TradeJournalProps> = ({
       const wins = dayEntries.filter((e) => e.outcome === 'WIN').length;
       const losses = dayEntries.filter((e) => e.outcome === 'LOSS').length;
       const bes = dayEntries.filter((e) => e.outcome === 'BREAKEVEN').length;
-      const netPips = dayEntries.reduce((sum, e) => sum + (e.pnlPips !== undefined ? e.pnlPips : (e.outcome === 'WIN' ? 35 : e.outcome === 'LOSS' ? -20 : 0)), 0);
+      const netPips = dayEntries.reduce((sum, e) => sum + (e.pnlPips || 0), 0);
 
       days.push({
         date: nextDate,
@@ -312,7 +343,7 @@ export const TradeJournal: React.FC<TradeJournalProps> = ({
 
     const monthWins = currentMonthEntries.filter((e) => e.outcome === 'WIN').length;
     const monthLosses = currentMonthEntries.filter((e) => e.outcome === 'LOSS').length;
-    const monthNetPips = currentMonthEntries.reduce((sum, e) => sum + (e.pnlPips !== undefined ? e.pnlPips : (e.outcome === 'WIN' ? 35 : e.outcome === 'LOSS' ? -20 : 0)), 0);
+    const monthNetPips = currentMonthEntries.reduce((sum, e) => sum + (e.pnlPips || 0), 0);
 
     // Count profitable days vs losing days in this month
     const activeDaysThisMonth = days.filter((cell) => cell.isCurrentMonth && cell.entries.length > 0);
@@ -797,11 +828,19 @@ export const TradeJournal: React.FC<TradeJournalProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => handleDelete(entry.id)}
-                        className="p-1 text-slate-500 hover:text-rose-400 rounded hover:bg-rose-500/10 transition-colors opacity-70 group-hover:opacity-100 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRequestDelete(entry);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-rose-500/15 border border-slate-800 hover:border-rose-500/30 transition-all cursor-pointer relative z-10"
                         title="Delete journal entry"
+                        disabled={deletingId === entry.id}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        {deletingId === entry.id ? (
+                          <div className="w-3.5 h-3.5 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5 text-rose-400/80 hover:text-rose-300" />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -838,6 +877,12 @@ export const TradeJournal: React.FC<TradeJournalProps> = ({
                   {entry.notes && (
                     <div className="text-xs text-slate-300 bg-[#0c101c] p-2.5 rounded-lg border border-slate-800/80 leading-relaxed mb-2 italic">
                       "{entry.notes}"
+                    </div>
+                  )}
+                  {signals.find(s => s.id === entry.signalId)?.shareId && (
+                    <div className="text-[10px] text-slate-500 mb-2 flex items-center gap-1">
+                      <Globe className="w-3 h-3" />
+                      Shared Link Active
                     </div>
                   )}
                 </div>
@@ -926,7 +971,7 @@ export const TradeJournal: React.FC<TradeJournalProps> = ({
                     type="button"
                     onClick={() => {
                       setOutcome('WIN');
-                      setPnlPips('35');
+                      setPnlPips('');
                     }}
                     className={`py-2 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
                       outcome === 'WIN'
@@ -942,7 +987,7 @@ export const TradeJournal: React.FC<TradeJournalProps> = ({
                     type="button"
                     onClick={() => {
                       setOutcome('LOSS');
-                      setPnlPips('-15');
+                      setPnlPips('');
                     }}
                     className={`py-2 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
                       outcome === 'LOSS'
@@ -958,7 +1003,7 @@ export const TradeJournal: React.FC<TradeJournalProps> = ({
                     type="button"
                     onClick={() => {
                       setOutcome('BREAKEVEN');
-                      setPnlPips('0');
+                      setPnlPips('');
                     }}
                     className={`py-2 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
                       outcome === 'BREAKEVEN'
@@ -996,7 +1041,7 @@ export const TradeJournal: React.FC<TradeJournalProps> = ({
                     step="0.5"
                     value={pnlPips}
                     onChange={(e) => setPnlPips(e.target.value)}
-                    placeholder="e.g. +35 or -15"
+                    placeholder="e.g. 10"
                     className="w-full bg-[#080b12] border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500"
                   />
                 </div>
@@ -1138,21 +1183,11 @@ export const TradeJournal: React.FC<TradeJournalProps> = ({
                       <button
                         type="button"
                         onClick={() => {
-                          handleDelete(entry.id);
-                          setSelectedDayModal((prev) => {
-                            if (!prev) return null;
-                            const remaining = prev.entries.filter((e) => e.id !== entry.id);
-                            if (remaining.length === 0) return null;
-                            const wins = remaining.filter((e) => e.outcome === 'WIN').length;
-                            const losses = remaining.filter((e) => e.outcome === 'LOSS').length;
-                            const bes = remaining.filter((e) => e.outcome === 'BREAKEVEN').length;
-                            const net = remaining.reduce((acc, curr) => acc + (curr.pnlPips || 0), 0);
-                            return { ...prev, entries: remaining, winCount: wins, lossCount: losses, beCount: bes, netPips: net };
-                          });
+                          handleRequestDelete(entry);
                         }}
-                        className="text-slate-500 hover:text-rose-400 text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                        className="text-slate-400 hover:text-rose-400 text-xs transition-colors flex items-center gap-1.5 cursor-pointer py-1 px-2 rounded-lg hover:bg-rose-500/10 border border-slate-850 hover:border-rose-500/30"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3.5 h-3.5 text-rose-400" />
                         <span>Delete Trade</span>
                       </button>
 
@@ -1184,6 +1219,112 @@ export const TradeJournal: React.FC<TradeJournalProps> = ({
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold cursor-pointer"
               >
                 Close Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* In-App Delete Confirmation Modal (100% Reliable, No window.confirm) */}
+      {entryToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#0b0f19] border border-rose-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Delete Journal Trade?</h3>
+                <p className="text-xs text-slate-400">Permanently remove this trade entry from Cloud Firestore.</p>
+              </div>
+            </div>
+
+            {/* Entry Summary Preview */}
+            <div className="p-3.5 rounded-xl bg-[#060810] border border-slate-800 space-y-2 text-xs font-mono">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Pair & Direction:</span>
+                <span className="text-white font-bold flex items-center gap-1.5">
+                  <span>{entryToDelete.pair}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded text-[10px] font-extrabold ${
+                      entryToDelete.direction === 'BUY'
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : 'bg-rose-500/20 text-rose-300'
+                    }`}
+                  >
+                    {entryToDelete.direction}
+                  </span>
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Outcome:</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                    entryToDelete.outcome === 'WIN'
+                      ? 'bg-emerald-500/20 text-emerald-300'
+                      : entryToDelete.outcome === 'LOSS'
+                      ? 'bg-rose-500/20 text-rose-300'
+                      : 'bg-amber-500/20 text-amber-300'
+                  }`}
+                >
+                  {entryToDelete.outcome}
+                </span>
+              </div>
+              {entryToDelete.pnlPips !== undefined && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">PnL (Pips):</span>
+                  <span
+                    className={`font-bold ${
+                      entryToDelete.pnlPips >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                    }`}
+                  >
+                    {entryToDelete.pnlPips > 0 ? `+${entryToDelete.pnlPips}` : entryToDelete.pnlPips} pips
+                  </span>
+                </div>
+              )}
+              {entryToDelete.notes && (
+                <div className="pt-1.5 text-slate-300 text-[11px] italic font-sans border-t border-slate-800/80">
+                  "{entryToDelete.notes}"
+                </div>
+              )}
+            </div>
+
+            {deleteErrorMessage && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{deleteErrorMessage}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEntryToDelete(null);
+                  setDeleteErrorMessage(null);
+                }}
+                disabled={deletingId === entryToDelete.id}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deletingId === entryToDelete.id}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-lg shadow-rose-600/30 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {deletingId === entryToDelete.id ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Permanently</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

@@ -334,9 +334,66 @@
         "marketStructure",
         "createdAt"
       ]
+    },
+    "UserStrategySettings": {
+      "title": "UserStrategySettings",
+      "description": "User preferences for active trading strategies.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase UID of user"
+        },
+        "activeStrategies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of active strategy names."
+        }
+      },
+      "required": [
+        "userId",
+        "activeStrategies"
+      ]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account profile record for tracking registered traders and activity.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase user UID"
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name"
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "description": "Last sign-in timestamp"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Account registration timestamp"
+        }
+      },
+      "required": [
+        "uid",
+        "email"
+      ]
     }
   },
   "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Registered trader account profile document."
+    },
     "/users/{userId}/analyses/{analysisId}": {
       "schema": "Analysis",
       "description": "Individual forex signal analysis document owned by the user."
@@ -356,6 +413,10 @@
     "/sharedSignals/{shareId}": {
       "schema": "SharedSignal",
       "description": "Public-facing view-only trade signal analysis accessible without login."
+    },
+    "/users/{userId}/settings/strategies": {
+      "schema": "UserStrategySettings",
+      "description": "User-configured trading strategies enabled for AI signal generation."
     }
   }
 }
